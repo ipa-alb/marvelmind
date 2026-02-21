@@ -1,0 +1,6 @@
+[submodule "src/marvelmind_ros2"]
+	path = src/marvelmind_ros2
+	url = git@github.com:ipa-alb/marvelmind_ros2_upstream.git
+[submodule "src/marvelmind_ros2_msgs"]
+	path = src/marvelmind_ros2_msgs
+	url = git@github.com:ipa-alb/marvelmind_ros2_msgs_upstream.git
