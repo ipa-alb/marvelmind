@@ -11,7 +11,7 @@ modification, are permitted provided that the following conditions are met:
    notice, this list of conditions and the following disclaimer in the
    documentation and/or other materials provided with the distribution.
 
-THIS SOFTWARE IS PROVIDED BY THE AUfTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
 EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
 DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY
@@ -33,17 +33,13 @@ DAMAGE.
 #include <cstdlib>
 #include <memory>
 #include <sstream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
+#include <cstdio>
 #ifndef WIN32
 #include <semaphore.h>
 #include <fcntl.h>
-#include <thread>
 #endif
-using namespace std::chrono_literals;
 
-extern "C" 
+extern "C"
 {
     #include "marvelmind_api.h"
 }
@@ -51,8 +47,6 @@ extern "C"
 // ROS2
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/logger.hpp"
-
-#define MM_LOGGER_NAME "marvelmind_api"
 
 #include "marvelmind_ros2_msgs/srv/marvelmind_api.hpp"
 
@@ -67,14 +61,9 @@ class marvelmind_api_ros2 : public rclcpp::Node
         void mmAPIrequestProcess(marvelmind_ros2_msgs::srv::MarvelmindAPI::Request::SharedPtr req,
             marvelmind_ros2_msgs::srv::MarvelmindAPI::Response::SharedPtr res);
 
-        // Timer to execute publications so we can easily control rate
-        rclcpp::TimerBase::SharedPtr marvelmind_ros2_pub_timer;
-
         // Function prototypes
-        void publishTimerCallback();
-
         void timer1Callback();
-        
+
         void tryOpenPort(void);
 
 
@@ -86,14 +75,8 @@ class marvelmind_api_ros2 : public rclcpp::Node
 
         std::string tty_filename;
         int64_t publish_rate_in_hz;
-        std::chrono::milliseconds publish_rate_ms;
 
         uint32_t mm_api_version;
-        
+
         bool openPortTryNeeded;
 };
-
-
-
-
-

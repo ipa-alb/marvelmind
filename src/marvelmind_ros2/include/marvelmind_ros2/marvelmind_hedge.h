@@ -265,13 +265,8 @@ struct MarvelmindHedge * createMarvelmindHedge ();
 void destroyMarvelmindHedge (struct MarvelmindHedge * hedge);
 void startMarvelmindHedge (struct MarvelmindHedge * hedge);
 
-//void printPositionFromMarvelmindHedge (struct MarvelmindHedge * hedge,
-//                                       bool onlyNew);
 bool getPositionFromMarvelmindHedge (struct MarvelmindHedge * hedge,
                                      struct PositionValue * position);
-                                     
-//void printStationaryBeaconsPositionsFromMarvelmindHedge (struct MarvelmindHedge * hedge,
-//                                                         bool onlyNew);
 
 bool getStationaryBeaconsPositionsFromMarvelmindHedge (struct MarvelmindHedge * hedge,
                                               struct StationaryBeaconsPositions * positions);

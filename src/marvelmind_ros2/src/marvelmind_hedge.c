@@ -11,7 +11,7 @@ modification, are permitted provided that the following conditions are met:
    notice, this list of conditions and the following disclaimer in the
    documentation and/or other materials provided with the distribution.
 
-THIS SOFTWARE IS PROVIDED BY THE AUfTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
 EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
 DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY
@@ -38,6 +38,21 @@ DAMAGE.
 #include <sys/poll.h>
 #endif // WIN32
 #include "marvelmind_ros2/marvelmind_hedge.h"
+
+// Protocol header bytes
+#define MM_HEADER_BYTE     0xff
+#define MM_PACKET_MARKER_1 0x47  // hedgehog/beacon data packet
+#define MM_PACKET_MARKER_2 0x4a  // waypoint/user data packet
+
+// Expected payload sizes for datagram validation
+#define MM_PAYLOAD_SIZE_POSITION      0x10
+#define MM_PAYLOAD_SIZE_POS_HIGHRES   0x16
+#define MM_PAYLOAD_SIZE_IMU_RAW       0x20
+#define MM_PAYLOAD_SIZE_IMU_FUSION    0x2a
+#define MM_PAYLOAD_SIZE_RAW_DISTANCE  0x20
+#define MM_PAYLOAD_SIZE_TELEMETRY     0x10
+#define MM_PAYLOAD_SIZE_QUALITY       0x10
+#define MM_PAYLOAD_SIZE_WAYPOINT      0x0c
 
 //////////////////////////////////////////////////////////////////////////////
 // Calculate CRC (Modbus) for array of bytes
@@ -286,8 +301,9 @@ static int32_t get_int32(uint8_t *buffer)
 //////////////////////////////////////////////////////////////////////////
 
 static uint8_t markPositionReady(struct MarvelmindHedge * hedge)
-{uint8_t ind= hedge->lastValues_next;
- uint8_t indCur= ind;
+{
+    uint8_t ind= hedge->lastValues_next;
+    uint8_t indCur= ind;
 
     hedge->positionBuffer[ind].ready=
         true;
@@ -306,7 +322,8 @@ static uint8_t markPositionReady(struct MarvelmindHedge * hedge)
 }
 
 static struct PositionValue process_position_datagram(struct MarvelmindHedge * hedge, uint8_t *buffer)
-{uint8_t ind= hedge->lastValues_next;
+{
+    uint8_t ind= hedge->lastValues_next;
 
     hedge->positionBuffer[ind].address=
         buffer[16];
@@ -637,7 +654,8 @@ static void process_nt_raw_distances_datagram(struct MarvelmindHedge* hedge, uin
 }
 
 static void process_telemetry_datagram(struct MarvelmindHedge * hedge, uint8_t *buffer)
-{uint8_t *dataBuf= &buffer[5];
+{
+   uint8_t *dataBuf= &buffer[5];
 
    hedge->telemetry.vbat_mv= get_uint16(&dataBuf[0]);
    hedge->telemetry.rssi_dbm= (int8_t) dataBuf[2];
@@ -646,7 +664,8 @@ static void process_telemetry_datagram(struct MarvelmindHedge * hedge, uint8_t *
 }
 
 static void process_quality_datagram(struct MarvelmindHedge * hedge, uint8_t *buffer)
-{uint8_t *dataBuf= &buffer[5];
+{
+   uint8_t *dataBuf= &buffer[5];
 
    hedge->quality.address= dataBuf[0];
    hedge->quality.quality_per= dataBuf[1];
@@ -658,7 +677,7 @@ static void send_waypoint_confirm(SERIAL_PORT_HANDLE ttyHandle) {
     uint8_t buf[100];
     
     buf[0]= 0;
-    buf[1]= 0x4a;
+    buf[1]= MM_PACKET_MARKER_2;
     buf[2]= WAYPOINT_DATAGRAM_ID & 0xff;
     buf[3]= (WAYPOINT_DATAGRAM_ID >>8) &0xff;
     
@@ -676,7 +695,8 @@ static void send_waypoint_confirm(SERIAL_PORT_HANDLE ttyHandle) {
 }
 
 static void process_waypoint_data(struct MarvelmindHedge * hedge, uint8_t *buffer)
-{uint8_t *dataBuf= &buffer[5];
+{
+   uint8_t *dataBuf= &buffer[5];
 	
    uint8_t movementType= dataBuf[0];
    uint8_t itemIndex= dataBuf[1];	
@@ -778,18 +798,18 @@ Marvelmind_Thread_ (void* param)
                 switch(nBytesInBlockReceived)
                 {
                     case 0:
-                        goodByte= (receivedChar == 0xff);
+                        goodByte= (receivedChar == MM_HEADER_BYTE);
                         break;
                     case 1:
                         packetType = receivedChar;
-                        goodByte = (packetType == 0x47) || (packetType == 0x4a);
+                        goodByte = (packetType == MM_PACKET_MARKER_1) || (packetType == MM_PACKET_MARKER_2);
                         break;
                     case 2:
                         goodByte= true;
                         break;
                     case 3:
                         dataId= (((uint16_t) receivedChar)<<8) + input_buffer[2];
-                        if (input_buffer[1] == 0x47) 
+                        if (input_buffer[1] == MM_PACKET_MARKER_1)
                           {
 	                        goodByte=   (dataId == POSITION_DATAGRAM_ID) ||
 	                                    (dataId == BEACONS_POSITIONS_DATAGRAM_ID) ||
@@ -806,7 +826,7 @@ Marvelmind_Thread_ (void* param)
                                         (dataId == NT_IMU_FUSION_DATAGRAM_ID);
 
                           }
-                        else if (input_buffer[1] == 0x4a) 
+                        else if (input_buffer[1] == MM_PACKET_MARKER_2)
                           {
 							  goodByte= (dataId == WAYPOINT_DATAGRAM_ID) ||
                                         (dataId == GENERIC_USER_DATA_DATAGRAM_ID);
@@ -816,32 +836,32 @@ Marvelmind_Thread_ (void* param)
                         switch(dataId )
                         {
                             case POSITION_DATAGRAM_ID:
-                                goodByte= (receivedChar == 0x10);
+                                goodByte= (receivedChar == MM_PAYLOAD_SIZE_POSITION);
                                 break;
                             case BEACONS_POSITIONS_DATAGRAM_ID:
                             case BEACONS_POSITIONS_DATAGRAM_HIGHRES_ID:
                                 goodByte= true;
                                 break;
                             case POSITION_DATAGRAM_HIGHRES_ID:
-                                goodByte= (receivedChar == 0x16);
+                                goodByte= (receivedChar == MM_PAYLOAD_SIZE_POS_HIGHRES);
                                 break;
                             case IMU_RAW_DATAGRAM_ID:
-								goodByte= (receivedChar == 0x20);
+								goodByte= (receivedChar == MM_PAYLOAD_SIZE_IMU_RAW);
                                 break;
                             case IMU_FUSION_DATAGRAM_ID:
-                                goodByte= (receivedChar == 0x2a);
+                                goodByte= (receivedChar == MM_PAYLOAD_SIZE_IMU_FUSION);
                                 break;
                             case BEACON_RAW_DISTANCE_DATAGRAM_ID:
-                                goodByte= (receivedChar == 0x20);
+                                goodByte= (receivedChar == MM_PAYLOAD_SIZE_RAW_DISTANCE);
                                 break;
                             case TELEMETRY_DATAGRAM_ID:
-                                goodByte= (receivedChar == 0x10);
+                                goodByte= (receivedChar == MM_PAYLOAD_SIZE_TELEMETRY);
                                 break;
                             case QUALITY_DATAGRAM_ID:
-                                goodByte= (receivedChar == 0x10);
+                                goodByte= (receivedChar == MM_PAYLOAD_SIZE_QUALITY);
                                 break;
                             case WAYPOINT_DATAGRAM_ID:
-                                goodByte= (receivedChar == 0x0c);
+                                goodByte= (receivedChar == MM_PAYLOAD_SIZE_WAYPOINT);
                                 break;
                             case NT_POSITION_DATAGRAM_HIGHRES_ID:
                             case NT_IMU_RAW_DATAGRAM_ID:
@@ -1013,8 +1033,9 @@ struct MarvelmindHedge * createMarvelmindHedge ()
 // Initialize and start work thread
 //////////////////////////////////////////////////////////////////////////////
 void startMarvelmindHedge (struct MarvelmindHedge * hedge)
-{uint8_t i;
-	
+{
+    uint8_t i;
+
     hedge->positionBuffer=
         malloc(sizeof (struct PositionValue)*hedge->maxBufferedPositions);
     if (hedge->positionBuffer==NULL)
@@ -1044,7 +1065,6 @@ void startMarvelmindHedge (struct MarvelmindHedge * hedge)
     {
 		hedge->waypoints.items[i].updated= false;
 	}
-    printf("Creating Hedge Thread!");
 #ifdef WIN32
     _beginthread (Marvelmind_Thread_, 0, hedge);
 #else
@@ -1165,66 +1185,6 @@ bool getPositionFromMarvelmindHedge (struct MarvelmindHedge * hedge,
 }
 
 //////////////////////////////////////////////////////////////////////////////
-// Print average position coordinates
-// onlyNew: print only new positions
-//////////////////////////////////////////////////////////////////////////////
-
-/*
-void printPositionFromMarvelmindHedge (struct MarvelmindHedge * hedge,
-    bool onlyNew)
-{uint8_t i,j;
- double xm,ym,zm;
-
-    if (hedge->haveNewValues_ || (!onlyNew))
-    {
-        struct PositionValue position;
-        uint8_t real_values_count=hedge->maxBufferedPositions;
-        #ifdef WIN32
-        uint8_t addresses[256];
-        #else
-        uint8_t addresses[real_values_count];
-        #endif
-        uint8_t addressesNum= 0;
-
-        for(i=0;i<real_values_count;i++)
-        {
-           uint8_t address= hedge->positionBuffer[i].address;
-           bool alreadyProcessed= false;
-           if (addressesNum != 0)
-                for(j=0;j<addressesNum;j++)
-                {
-                    if (address == addresses[j])
-                    {
-                        alreadyProcessed= true;
-                        break;
-                    }
-               }
-            if (alreadyProcessed)
-                continue;
-            addresses[addressesNum++]= address;
-
-            getPositionFromMarvelmindHedgeByAddress (hedge, &position, address);
-            xm= ((double) position.x)/1000.0;
-            ym= ((double) position.y)/1000.0;
-            zm= ((double) position.z)/1000.0;
-            if (position.ready)
-            {
-                if (position.highResolution)
-                {
-                    printf ("Address: %d, X: %.3f, Y: %.3f, Z: %.3f at time T: %u\n",
-                            position.address, xm, ym, zm, position.timestamp);
-                } else
-                {
-                    printf ("Address: %d, X: %.2f, Y: %.2f, Z: %.2f at time T: %u\n",
-                            position.address, xm, ym, zm, position.timestamp);
-                }
-            }
-            hedge->haveNewValues_=false;
-        }
-    }
-}
-*/
-//////////////////////////////////////////////////////////////////////////////
 // Get positions of stationary beacons
 // hedge:       MarvelmindHedge structure
 // positions:   pointer to structure for write coordinates
@@ -1251,8 +1211,9 @@ bool getStationaryBeaconsPositionsFromMarvelmindHedge (struct MarvelmindHedge * 
 }
 
 void clearStationaryBeaconUpdatedFlag(struct MarvelmindHedge * hedge, uint8_t address)
-{uint8_t i,n;
-	
+{
+    uint8_t i,n;
+
 #ifdef WIN32
     EnterCriticalSection(&hedge->lock_);
 #else
@@ -1275,46 +1236,6 @@ void clearStationaryBeaconUpdatedFlag(struct MarvelmindHedge * hedge, uint8_t ad
     pthread_mutex_unlock (&hedge->lock_);
 #endif
 }
-
-//////////////////////////////////////////////////////////////////////////////
-// Print stationary beacons positions
-// onlyNew: print only new positions
-//////////////////////////////////////////////////////////////////////////////
-
-/*
-void printStationaryBeaconsPositionsFromMarvelmindHedge (struct MarvelmindHedge * hedge,
-                                                         bool onlyNew)
-{struct StationaryBeaconsPositions positions;
-  double xm,ym,zm;
-
-    getStationaryBeaconsPositionsFromMarvelmindHedge(hedge, &positions);
-
-    if (positions.updated || (!onlyNew))
-    {uint8_t i;
-     uint8_t n= hedge->positionsBeacons.numBeacons;
-     struct StationaryBeaconPosition *b;
-
-        for(i=0;i<n;i++)
-        {
-            b= &positions.beacons[i];
-            xm= ((double) b->x)/1000.0;
-            ym= ((double) b->y)/1000.0;
-            zm= ((double) b->z)/1000.0;
-            if (positions.beacons[i].highResolution)
-            {
-                printf ("Stationary beacon: address: %d, X: %.3f, Y: %.3f, Z: %.3f \n",
-                            b->address,xm, ym, zm);
-            } else
-            {
-                printf ("Stationary beacon: address: %d, X: %.2f, Y: %.2f, Z: %.2f \n",
-                            b->address,xm, ym, zm);
-            }
-        }
-
-        hedge->positionsBeacons.updated= false;
-    }
-}
-*/
 
 //////////////////////////////////////////////////////////////////////////////
 // Stop work thread

@@ -11,7 +11,7 @@ modification, are permitted provided that the following conditions are met:
    notice, this list of conditions and the following disclaimer in the
    documentation and/or other materials provided with the distribution.
 
-THIS SOFTWARE IS PROVIDED BY THE AUfTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
 EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
 DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY
@@ -33,17 +33,13 @@ DAMAGE.
 #include <cstdlib>
 #include <memory>
 #include <sstream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
+#include <cstdio>
 #ifndef WIN32
 #include <semaphore.h>
 #include <fcntl.h>
-#include <thread>
 #endif
-using namespace std::chrono_literals;
 
-extern "C" 
+extern "C"
 {
     #include "marvelmind_hedge.h"
 }
@@ -52,7 +48,7 @@ extern "C"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/logger.hpp"
 
-// Needed external messages 
+// Needed external messages
 #include "marvelmind_ros2_msgs/msg/hedge_position.hpp"
 #include "marvelmind_ros2_msgs/msg/hedge_position_addressed.hpp"
 #include "marvelmind_ros2_msgs/msg/hedge_position_angle.hpp"
@@ -69,9 +65,15 @@ extern "C"
 
 #include "marvelmind_ros2_msgs/msg/marvelmind_user_data.hpp"
 
+// Marvelmind hardware: each timestamp tick = 15.625 ms (alpha-cycle period)
+static constexpr double MM_TIMESTAMP_MS_PER_TICK = 15.625;
+
+static constexpr int DEFAULT_QOS_DEPTH = 20;
+static constexpr int MAX_BEACON_READ_ITERATIONS = 4;
+static constexpr int SEM_TIMEOUT_SEC = 2;
 
 // global vars
-// global semaphore to avoid class scope issues 
+// global semaphore to avoid class scope issues
 #ifndef WIN32
 static sem_t *sem;
 #else
@@ -103,6 +105,11 @@ class marvelmind_ros2 : public rclcpp::Node
         // Timer to execute publications so we can easily control rate
         rclcpp::TimerBase::SharedPtr marvelmind_ros2_pub_timer;
 
+        // Constructor helpers
+        void declareParameters();
+        void initPublishers();
+        void initMessages();
+
         // Function prototypes
         int hedgeReceivePrepare();
         bool hedgeReceiveCheck(void);
@@ -111,11 +118,14 @@ class marvelmind_ros2 : public rclcpp::Node
         bool hedgeIMUFusionReceiveCheck(void);
         void getRawDistance(uint8_t index);
         bool hedgeTelemetryUpdateCheck(void);
-        bool hedgeQualityUpdateCheck(void);  
+        bool hedgeQualityUpdateCheck(void);
         bool marvelmindWaypointUpdateCheck(void);
         bool marvelmindUserDataUpdateCheck(void);
         void publishTimerCallback();
 
+        // Helpers
+        static inline double mmToMeters(int32_t mm) { return mm / 1000.0; }
+        static int64_t getTimestamp(const TimestampOpt &ts, bool realTime);
 
         // Variables
         // Topic names
@@ -133,11 +143,7 @@ class marvelmind_ros2 : public rclcpp::Node
 
         // Config variables
         std::string data_input_semaphore_name;
-        #ifdef WIN32
-        int tty_baudrate;
-        #else
-        uint tty_baudrate;
-        #endif
+        uint32_t tty_baudrate;
         std::string tty_filename;
         int publish_rate_in_hz;
         std::chrono::milliseconds publish_rate_ms;
@@ -145,8 +151,6 @@ class marvelmind_ros2 : public rclcpp::Node
         // Marvelmind data
         struct MarvelmindHedge * hedge = NULL;
         int64_t hedge_timestamp_prev = 0;
-        struct timespec ts;
-        uint8_t beaconReadIterations;
 
         // setup empty messages for sending
         marvelmind_ros2_msgs::msg::HedgePosition hedge_pos_noaddress_msg;// hedge coordinates message (old version without address) for publishing to ROS topic
@@ -159,11 +163,6 @@ class marvelmind_ros2 : public rclcpp::Node
         marvelmind_ros2_msgs::msg::HedgeTelemetry hedge_telemetry_msg;// Telemetry message for publishing to ROS topic
         marvelmind_ros2_msgs::msg::HedgeQuality hedge_quality_msg;// Quality message for publishing to ROS topic
         marvelmind_ros2_msgs::msg::MarvelmindWaypoint marvelmind_waypoint_msg;// Waypoint message for publishing to ROS topic
-        marvelmind_ros2_msgs::msg::MarvelmindUserData marvelmind_user_data_msg;// Waypoint message for publishing to ROS topic
+        marvelmind_ros2_msgs::msg::MarvelmindUserData marvelmind_user_data_msg;// User data message for publishing to ROS topic
 
 };
-
-
-
-
-
