@@ -158,3 +158,43 @@ rviz2 -d src/marvelmind_rviz/config/marvelmind_rviz.rviz
 | `src/marvelmind_rviz/marvelmind_rviz/visualizer_node.py` | **Create** | Main visualizer node (~150-200 lines) |
 | `src/marvelmind_rviz/launch/visualize.launch.py` | **Create** | Combined launch file |
 | `src/marvelmind_rviz/config/marvelmind_rviz.rviz` | **Create** | RViz saved config |
+
+---
+
+## TODO: Migrate to ROS 2 Jazzy
+
+### Overview
+
+Migrate the workspace from ROS 2 Humble to ROS 2 Jazzy (Ubuntu 24.04).
+
+## Migration Steps
+
+### Step 1: Update C++ standard to C++17 (recommended)
+
+| File | Change |
+|------|--------|
+| `src/marvelmind_ros2/CMakeLists.txt` | `set(CMAKE_CXX_STANDARD 14)` → `set(CMAKE_CXX_STANDARD 17)` |
+| `src/marvelmind_ros2_msgs/CMakeLists.txt` | `set(CMAKE_CXX_STANDARD 14)` → `set(CMAKE_CXX_STANDARD 17)` |
+
+### Step 2: Update setup source in docs
+
+- `CLAUDE.md`: change `source /opt/ros/humble/setup.bash` → `source /opt/ros/jazzy/setup.bash`
+- `TODO.md`: update any build instructions referencing Humble
+
+### Step 3: Build and verify on Jazzy
+
+```bash
+source /opt/ros/jazzy/setup.bash
+colcon build
+source install/setup.bash
+ros2 launch marvelmind_ros2 marvelmind_ros2.launch.py
+ros2 topic echo /hedgehog_pos_ang
+```
+
+## Notes
+
+- No deprecated ROS 2 APIs are in use — all rclcpp patterns are stable across Humble and Jazzy
+- C libraries (marvelmind_hedge.c, marvelmind_api.c) are pure C99 and ROS-agnostic — no changes needed
+- Message/service definitions use only basic types — fully compatible
+- Launch files and config YAML work identically across both distributions
+- Requires Ubuntu 24.04 for Jazzy
